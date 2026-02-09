@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meu Site de Futebol</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { padding: 10px 20px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Meu Site de Futebol</h1>
+  <p>Veja os últimos resultados do time:</p>
+  <button onclick="verResultados()">Ver últimos resultados</button>
+
+  <ul id="resultados"></ul>
+
+  <script>
+    function verResultados() {
+      // Dados simulados dos últimos 10 jogos
+      const resultados = [
+        { adversario: "Barcelona", golsTime: 2, golsAdversario: 1 },
+        { adversario: "Sevilla", golsTime: 3, golsAdversario: 0 },
+        { adversario: "Atletico", golsTime: 1, golsAdversario: 1 },
+        { adversario: "Valencia", golsTime: 4, golsAdversario: 2 },
+        { adversario: "Villarreal", golsTime: 2, golsAdversario: 2 },
+        { adversario: "Real Sociedad", golsTime: 3, golsAdversario: 1 },
+        { adversario: "Athletic Bilbao", golsTime: 2, golsAdversario: 0 },
+        { adversario: "Celta", golsTime: 1, golsAdversario: 0 },
+        { adversario: "Osasuna", golsTime: 3, golsAdversario: 1 },
+        { adversario: "Betis", golsTime: 2, golsAdversario: 2 },
+      ];
+
+      const ul = document.getElementById("resultados");
+      ul.innerHTML = "";
+      resultados.forEach(jogo => {
+        const li = document.createElement("li");
+        li.textContent = `${jogo.adversario}: ${jogo.golsTime} - ${jogo.golsAdversario}`;
+        ul.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>
