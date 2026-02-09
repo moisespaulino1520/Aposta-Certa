@@ -1,2 +1,96 @@
-.
+async function buscarTime(){
+  const teamId = document.getElementById("teamSelect").value;
+  if(!teamId){ alert("Selecione um time!"); return; }
+
+  document.getElementById("resultados").innerHTML = "A analisar jogos...";
+  document.getElementById("previsoes").innerHTML = "";
+
+  try{
+    // Buscar últimos 5 jogos
+    const res = await fetch(`https://v3.football.api-sports.io/fixtures?team=${teamId}&last=5`,{
+      headers:{
+        'X-RapidAPI-Key':'a1c8a92831aa83b9846d6433064d199d',
+        'X-RapidAPI-Host':'v3.football.api-sports.io'
+      }
+    });
+
+    const data = await res.json();
+    const jogos = data.response;
+
+    let html = `<table>
+    <tr>
+      <th>Adversário</th>
+      <th>Placar</th>
+      <th>Gols</th>
+      <th>Cantos</th>
+      <th>Cartões</th>
+      <th>Impedimentos</th>
+    </tr>`;
+
+    let mediaG=0, mediaC=0, mediaCa=0, mediaI=0;
+
+    for(const j of jogos){
+
+      const isHome = j.teams.home.id == teamId;
+      const adversario = isHome ? j.teams.away.name : j.teams.home.name;
+      const placar = `${j.goals.home} - ${j.goals.away}`;
+      const fixtureId = j.fixture.id;
+
+      // buscar estatísticas do jogo
+      const statsRes = await fetch(`https://v3.football.api-sports.io/fixtures/statistics?fixture=${fixtureId}`,{
+        headers:{
+          'X-RapidAPI-Key':'a1c8a92831aa83b9846d6433064d199d',
+          'X-RapidAPI-Host':'v3.football.api-sports.io'
+        }
+      });
+
+      const statsData = await statsRes.json();
+
+      // encontrar estatísticas do time selecionado
+      const teamStats = statsData.response.find(t => t.team.id == teamId);
+
+      let cantos=0, cartoes=0, impedimentos=0;
+
+      teamStats.statistics.forEach(s=>{
+        if(s.type=="Corner Kicks") cantos = parseInt(s.value)||0;
+        if(s.type=="Yellow Cards") cartoes += parseInt(s.value)||0;
+        if(s.type=="Red Cards") cartoes += parseInt(s.value)||0;
+        if(s.type=="Offsides") impedimentos = parseInt(s.value)||0;
+      });
+
+      const gols = isHome ? j.goals.home : j.goals.away;
+
+      mediaG+=gols;
+      mediaC+=cantos;
+      mediaCa+=cartoes;
+      mediaI+=impedimentos;
+
+      html+=`<tr>
+        <td>${adversario}</td>
+        <td>${placar}</td>
+        <td>${gols}</td>
+        <td>${cantos}</td>
+        <td>${cartoes}</td>
+        <td>${impedimentos}</td>
+      </tr>`;
+    }
+
+    html+=`</table>`;
+    document.getElementById("resultados").innerHTML = html;
+
+    // médias reais
+    document.getElementById("previsoes").innerHTML = `
+    <h3>Média últimos 5 jogos</h3>
+    Gols: ${(mediaG/5).toFixed(2)} <br>
+    Cantos: ${(mediaC/5).toFixed(2)} <br>
+    Cartões: ${(mediaCa/5).toFixed(2)} <br>
+    Impedimentos: ${(mediaI/5).toFixed(2)}
+    `;
+
+  }catch(e){
+    console.error(e);
+    document.getElementById("resultados").innerHTML = "Erro ao buscar dados da API";
+  }
+}
+
 
