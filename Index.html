@@ -1,176 +1,98 @@
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard de Futebol Real</title>
-<style>
-body { font-family: Arial, sans-serif; background:#121212; color:#f0f0f0; padding:20px; }
-h1,h2{text-align:center;}
-.search-bar{text-align:center;margin-bottom:20px;}
-select{padding:10px;border-radius:5px;border:none;margin-right:10px;width:200px;}
-button{padding:10px 15px;border:none;border-radius:5px;background-color:#1e88e5;color:white;cursor:pointer;}
-button:hover{background-color:#1565c0;}
-table{width:100%;border-collapse:collapse;margin-bottom:20px;}
-th,td{padding:8px;text-align:center;border-bottom:1px solid #333;}
-canvas{background:#1f1f1f;border-radius:10px;margin-top:20px;}
-img.logo{width:30px; vertical-align:middle; margin-right:5px;}
-</style>
-</head>
-<body>
-
-<h1>Dashboard de Futebol Real</h1>
-
-<div class="search-bar">
-  <select id="ligaSelect" onchange="popularTimes()"></select>
-  <select id="teamSelect"></select>
-  <button onclick="buscarTime()">Buscar</button>
-</div>
-
-<h2>Últimos resultados detalhados</h2>
-<div id="resultados"></div>
-
-<h2>Previsões futuras</h2>
-<div id="previsoes" class="card"></div>
-
-<h2>Gráficos de desempenho</h2>
-<canvas id="golsChart"></canvas>
-<canvas id="cantosChart"></canvas>
-<canvas id="cartoesChart"></canvas>
-<canvas id="impedimentosChart"></canvas>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-
-// === Ligas e times simplificados ===
-const ligas = [
-  {id:140,nome:"La Liga"}, {id:39,nome:"Premier League"}, {id:78,nome:"Bundesliga"},
-  {id:135,nome:"Serie A"}, {id:61,nome:"Ligue 1"}, {id:88,nome:"Eredivisie"},
-  {id:39,nome:"Süper Lig"}, {id:2,nome:"Belgian Pro League"}
-];
-
-const times = {
-"La Liga":[{nome:"Real Madrid",id:33},{nome:"Barcelona",id:529},{nome:"Atlético Madrid",id:541},{nome:"Sevilla",id:530}],
-"Premier League":[{nome:"Manchester United",id:42},{nome:"Liverpool",id:50},{nome:"Manchester City",id:46},{nome:"Chelsea",id:49}],
-"Bundesliga":[{nome:"Bayern Munique",id:157},{nome:"Borussia Dortmund",id:158}],
-"Serie A":[{nome:"Juventus",id:109},{nome:"Inter de Milão",id:108}],
-"Ligue 1":[{nome:"Paris Saint-Germain",id:85}],
-"Eredivisie":[{nome:"Ajax",id:87},{nome:"PSV",id:88},{nome:"Feyenoord",id:89}],
-"Süper Lig":[{nome:"Galatasaray",id:574},{nome:"Fenerbahçe",id:577},{nome:"Beşiktaş",id:580},{nome:"Trabzonspor",id:581}],
-"Belgian Pro League":[{nome:"Club Brugge",id:621},{nome:"Gent",id:622}]
-};
-
-// --- Popular ligas ---
-const ligaSelect = document.getElementById("ligaSelect");
-ligas.forEach(liga=>{
-  const option=document.createElement("option");
-  option.value=liga.nome;
-  option.textContent=liga.nome;
-  ligaSelect.appendChild(option);
-});
-
-// Popular times
-function popularTimes(){
-  const liga = ligaSelect.value;
-  const teamSelect = document.getElementById("teamSelect");
-  teamSelect.innerHTML="";
-  if(times[liga]){
-    times[liga].forEach(t=>{
-      const option=document.createElement("option");
-      option.value=t.id;
-      option.textContent=t.nome;
-      teamSelect.appendChild(option);
-    });
-  }
-}
-popularTimes();
-
-// --- Função buscarTime ---
 async function buscarTime(){
   const teamId = document.getElementById("teamSelect").value;
   if(!teamId){ alert("Selecione um time!"); return; }
 
+  document.getElementById("resultados").innerHTML = "A analisar jogos...";
+  document.getElementById("previsoes").innerHTML = "";
+
   try{
-    // 1️⃣ Buscar últimos 5 jogos
-    const res = await fetch(`https://v3.football.api-sports.io/fixtures?team=${teamId}&last=5`, {
-      method:'GET',
+    // Buscar últimos 5 jogos
+    const res = await fetch(`https://v3.football.api-sports.io/fixtures?team=${teamId}&last=5`,{
       headers:{
         'X-RapidAPI-Key':'a1c8a92831aa83b9846d6433064d199d',
-        'X-RapidAPI-Host':'api-football-v1.p.rapidapi.com'
+        'X-RapidAPI-Host':'v3.football.api-sports.io'
       }
     });
+
     const data = await res.json();
     const jogos = data.response;
 
-    // --- Preparar dados para tabela e gráficos ---
-    let html = `<table><tr><th>Adversário</th><th>Data</th><th>Placar</th><th>Gols</th><th>Cantos</th><th>Cartões</th><th>Impedimentos</th></tr>`;
-    let labels=[], gols=[], cantos=[], cartoes=[], impedimentos=[];
+    let html = `<table>
+    <tr>
+      <th>Adversário</th>
+      <th>Placar</th>
+      <th>Gols</th>
+      <th>Cantos</th>
+      <th>Cartões</th>
+      <th>Impedimentos</th>
+    </tr>`;
+
+    let mediaG=0, mediaC=0, mediaCa=0, mediaI=0;
 
     for(const j of jogos){
+
       const isHome = j.teams.home.id == teamId;
       const adversario = isHome ? j.teams.away.name : j.teams.home.name;
-      const escudo = isHome ? j.teams.away.logo : j.teams.home.logo;
       const placar = `${j.goals.home} - ${j.goals.away}`;
+      const fixtureId = j.fixture.id;
 
-      // 2️⃣ Buscar estatísticas detalhadas de cada jogo
-      const statsRes = await fetch(`https://v3.football.api-sports.io/fixtures/statistics?fixture=${j.fixture.id}&team=${teamId}`,{
-        method:'GET',
+      // buscar estatísticas do jogo
+      const statsRes = await fetch(`https://v3.football.api-sports.io/fixtures/statistics?fixture=${fixtureId}`,{
         headers:{
-          'X-RapidAPI-Key':'SUA_API_KEY_AQUI',
-          'X-RapidAPI-Host':'api-football-v1.p.rapidapi.com'
+          'X-RapidAPI-Key':'a1c8a92831aa83b9846d6433064d199d',
+          'X-RapidAPI-Host':'v3.football.api-sports.io'
         }
       });
-      const statsData = await statsRes.json();
-      const stats = statsData.response || [];
 
-      // Extrair dados reais (procurar por keys correspondentes)
-      let g= j.goals.home + j.goals.away; // total gols do jogo
-      let c=0, ca=0, i=0;
-      stats.forEach(s=>{
-        if(s.type=="Corner") c = parseInt(s.value) || 0;
-        if(s.type=="Yellow" || s.type=="Red") ca += parseInt(s.value) || 0;
-        if(s.type=="Offside") i = parseInt(s.value) || 0;
+      const statsData = await statsRes.json();
+
+      // encontrar estatísticas do time selecionado
+      const teamStats = statsData.response.find(t => t.team.id == teamId);
+
+      let cantos=0, cartoes=0, impedimentos=0;
+
+      teamStats.statistics.forEach(s=>{
+        if(s.type=="Corner Kicks") cantos = parseInt(s.value)||0;
+        if(s.type=="Yellow Cards") cartoes += parseInt(s.value)||0;
+        if(s.type=="Red Cards") cartoes += parseInt(s.value)||0;
+        if(s.type=="Offsides") impedimentos = parseInt(s.value)||0;
       });
 
-      html += `<tr>
-        <td><img src="${escudo}" class="logo"/> ${adversario}</td>
-        <td>${new Date(j.fixture.date).toLocaleDateString()}</td>
-        <td>${placar}</td>
-        <td>${g}</td>
-        <td>${c}</td>
-        <td>${ca}</td>
-        <td>${i}</td>
-      </tr>`;
+      const gols = isHome ? j.goals.home : j.goals.away;
 
-      labels.push(adversario);
-      gols.push(g); cantos.push(c); cartoes.push(ca); impedimentos.push(i);
+      mediaG+=gols;
+      mediaC+=cantos;
+      mediaCa+=cartoes;
+      mediaI+=impedimentos;
+
+      html+=`<tr>
+        <td>${adversario}</td>
+        <td>${placar}</td>
+        <td>${gols}</td>
+        <td>${cantos}</td>
+        <td>${cartoes}</td>
+        <td>${impedimentos}</td>
+      </tr>`;
     }
 
-    html += `</table>`;
+    html+=`</table>`;
     document.getElementById("resultados").innerHTML = html;
 
-    // --- Previsões médias ---
-    document.getElementById("previsoes").innerHTML = `<p>Gols esperados: ${Math.round(gols.reduce((a,b)=>a+b)/gols.length)}</p>
-      <p>Cantos esperados: ${Math.round(cantos.reduce((a,b)=>a+b)/cantos.length)}</p>
-      <p>Cartões esperados: ${Math.round(cartoes.reduce((a,b)=>a+b)/cartoes.length)}</p>
-      <p>Impedimentos esperados: ${Math.round(impedimentos.reduce((a,b)=>a+b)/impedimentos.length)}</p>`;
+    // médias reais
+    document.getElementById("previsoes").innerHTML = `
+    <h3>Média últimos 5 jogos</h3>
+    Gols: ${(mediaG/5).toFixed(2)} <br>
+    Cantos: ${(mediaC/5).toFixed(2)} <br>
+    Cartões: ${(mediaCa/5).toFixed(2)} <br>
+    Impedimentos: ${(mediaI/5).toFixed(2)}
+    `;
 
-    // --- Gráficos ---
-    function renderChart(id,data,label,title,color){
-      const ctx = document.getElementById(id).getContext('2d');
-      if(window[id]) window[id].destroy();
-      window[id] = new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:color}]} ,options:{plugins:{title:{display:true,text:title}},scales:{y:{beginAtZero:true}}}});
-    }
-    renderChart("golsChart",gols,"Gols","Gols por adversário","#ff6384");
-    renderChart("cantosChart",cantos,"Cantos","Cantos por adversário","#36a2eb");
-    renderChart("cartoesChart",cartoes,"Cartões","Cartões por adversário","#ffce56");
-    renderChart("impedimentosChart",impedimentos,"Impedimentos","Impedimentos por adversário","#4bc0c0");
-
-  }catch(e){ console.error(e); alert("Erro ao buscar dados!"); }
+  }catch(e){
+    console.error(e);
+    document.getElementById("resultados").innerHTML = "Erro ao buscar dados da API";
+  }
 }
-</script>
-</body>
-</html>
 
 
 
+      
