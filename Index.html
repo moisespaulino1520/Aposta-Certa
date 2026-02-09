@@ -1,2 +1,212 @@
-.
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Futebol Profissional</title>
+<style>
+body { font-family: Arial, sans-serif; background:#121212; color:#f0f0f0; padding:20px; }
+h1,h2{text-align:center;}
+.search-bar{text-align:center;margin-bottom:20px;}
+select{padding:10px;border-radius:5px;border:none;margin-right:10px;width:200px;}
+button{padding:10px 15px;border:none;border-radius:5px;background-color:#1e88e5;color:white;cursor:pointer;}
+button:hover{background-color:#1565c0;}
+.card{background:#1f1f1f;padding:15px;border-radius:10px;margin-bottom:15px;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+th,td{padding:8px;text-align:center;border-bottom:1px solid #333;}
+canvas{background:#1f1f1f;border-radius:10px;margin-top:20px;}
+#jogadores li{margin-bottom:5px;}
+img.logo{width:30px; vertical-align:middle; margin-right:5px;}
+</style>
+</head>
+<body>
+
+<h1>Dashboard de Futebol Profissional</h1>
+
+<div class="search-bar">
+  <select id="ligaSelect" onchange="popularTimes()"></select>
+  <select id="teamSelect"></select>
+  <button onclick="buscarTime()">Buscar</button>
+</div>
+
+<h2>Últimos resultados detalhados</h2>
+<div id="resultados"></div>
+
+<h2>Previsões futuras ajustadas</h2>
+<div id="previsoes" class="card"></div>
+
+<h2>Jogadores aptos</h2>
+<ul id="jogadores"></ul>
+
+<h2>Gráficos de desempenho</h2>
+<canvas id="golsChart"></canvas>
+<canvas id="cantosChart"></canvas>
+<canvas id="cartoesChart"></canvas>
+<canvas id="impedimentosChart"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+
+// === Ligas e times ===
+const ligas = [
+  {id:140,nome:"La Liga",logo:"https://upload.wikimedia.org/wikipedia/en/1/12/La_Liga_logo.png"},
+  {id:39,nome:"Premier League",logo:"https://upload.wikimedia.org/wikipedia/en/f/f2/Premier_League_Logo.svg"},
+  {id:78,nome:"Bundesliga",logo:"https://upload.wikimedia.org/wikipedia/en/d/df/Bundesliga_logo_%282017%29.svg"},
+  {id:135,nome:"Serie A",logo:"https://upload.wikimedia.org/wikipedia/en/e/e1/Serie_A_logo_%282019%29.svg"},
+  {id:61,nome:"Ligue 1",logo:"https://upload.wikimedia.org/wikipedia/en/a/a8/Ligue1.svg"},
+  {id:88,nome:"Eredivisie",logo:"https://upload.wikimedia.org/wikipedia/en/2/2f/Eredivisie_Logo.png"},
+  {id:39,nome:"Süper Lig",logo:"https://upload.wikimedia.org/wikipedia/en/8/87/Super_Lig_logo.png"},
+  {id:2,nome:"Belgian Pro League",logo:"https://upload.wikimedia.org/wikipedia/en/5/5c/Belgian_Pro_League_logo.png"}
+];
+
+const times = {
+"La Liga":[
+  {nome:"Real Madrid",id:33,escudo:"https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg"},
+  {nome:"Barcelona",id:529,escudo:"https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg"},
+  {nome:"Atlético Madrid",id:541,escudo:"https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_Logo.svg"},
+  {nome:"Sevilla",id:530,escudo:"https://upload.wikimedia.org/wikipedia/en/9/9e/Sevilla_FC_logo.svg"}
+],
+"Premier League":[
+  {nome:"Manchester United",id:42,escudo:"https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg"},
+  {nome:"Liverpool",id:50,escudo:"https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg"},
+  {nome:"Manchester City",id:46,escudo:"https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg"},
+  {nome:"Chelsea",id:49,escudo:"https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg"}
+],
+"Bundesliga":[
+  {nome:"Bayern Munique",id:157,escudo:"https://upload.wikimedia.org/wikipedia/en/1/1f/FC_Bayern_Munich_logo_%282017%29.svg"},
+  {nome:"Borussia Dortmund",id:158,escudo:"https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg"}
+],
+"Serie A":[
+  {nome:"Juventus",id:109,escudo:"https://upload.wikimedia.org/wikipedia/commons/1/15/Juventus_FC_2017_logo.svg"},
+  {nome:"Inter de Milão",id:108,escudo:"https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021_logo.svg"}
+],
+"Ligue 1":[
+  {nome:"Paris Saint-Germain",id:85,escudo:"https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg"}
+],
+"Eredivisie":[
+  {nome:"Ajax",id:87,escudo:"https://upload.wikimedia.org/wikipedia/en/7/79/Ajax_Amsterdam_logo.svg"},
+  {nome:"PSV",id:88,escudo:"https://upload.wikimedia.org/wikipedia/en/2/22/PSV_Eindhoven_logo.svg"},
+  {nome:"Feyenoord",id:89,escudo:"https://upload.wikimedia.org/wikipedia/en/2/26/Feyenoord_logo.svg"}
+],
+"Süper Lig":[
+  {nome:"Galatasaray",id:574,escudo:"https://upload.wikimedia.org/wikipedia/en/4/4e/Galatasaray_S.K._logo.svg"},
+  {nome:"Fenerbahçe",id:577,escudo:"https://upload.wikimedia.org/wikipedia/en/7/7f/Fenerbahce_S.K._logo.svg"},
+  {nome:"Beşiktaş",id:580,escudo:"https://upload.wikimedia.org/wikipedia/en/1/11/Besiktas_JK.svg"},
+  {nome:"Trabzonspor",id:581,escudo:"https://upload.wikimedia.org/wikipedia/en/9/9c/Trabzonspor_Logo.svg"}
+],
+"Belgian Pro League":[
+  {nome:"Club Brugge",id:621,escudo:"https://upload.wikimedia.org/wikipedia/en/8/85/Club_Brugge_KV_logo.svg"},
+  {nome:"Gent",id:622,escudo:"https://upload.wikimedia.org/wikipedia/en/3/3e/AA_Gent_logo.svg"}
+]
+};
+
+// Relatórios médicos simulados
+const relatoriosMedicos = {
+33:[{nome:"Vinicius Jr",aptidao:100},{nome:"Benzema",aptidao:80},{nome:"Courtois",aptidao:100},{nome:"Modric",aptidao:90}],
+529:[{nome:"Lewandowski",aptidao:100},{nome:"Ter Stegen",aptidao:100},{nome:"Frenkie de Jong",aptidao:85},{nome:"Pedri",aptidao:90}],
+541:[{nome:"Griezmann",aptidao:90},{nome:"Oblak",aptidao:100},{nome:"Koke",aptidao:95},{nome:"Llorente",aptidao:85}],
+42:[{nome:"Rashford",aptidao:100},{nome:"De Gea",aptidao:90},{nome:"Bruno Fernandes",aptidao:95},{nome:"Casemiro",aptidao:85}],
+50:[{nome:"Salah",aptidao:100},{nome:"Van Dijk",aptidao:100},{nome:"Alisson",aptidao:100},{nome:"Henderson",aptidao:90}],
+157:[{nome:"Lewandowski",aptidao:100},{nome:"Neuer",aptidao:100},{nome:"Kimmich",aptidao:95},{nome:"Gnabry",aptidao:90}]
+};
+
+// --- Popular ligas ---
+const ligaSelect = document.getElementById("ligaSelect");
+ligas.forEach(liga=>{
+  const option=document.createElement("option");
+  option.value=liga.nome;
+  option.textContent=liga.nome;
+  ligaSelect.appendChild(option);
+});
+
+// Popular times
+function popularTimes(){
+  const liga = ligaSelect.value;
+  const teamSelect = document.getElementById("teamSelect");
+  teamSelect.innerHTML="";
+  if(times[liga]){
+    times[liga].forEach(t=>{
+      const option=document.createElement("option");
+      option.value=t.id;
+      option.textContent=t.nome;
+      teamSelect.appendChild(option);
+    });
+  }
+}
+popularTimes();
+
+// --- Função buscarTime completa ---
+async function buscarTime(){
+  const teamId = document.getElementById("teamSelect").value;
+  if(!teamId){ alert("Selecione um time!"); return; }
+
+  const url = `https://v3.football.api-sports.io/fixtures?team=${teamId}&last=5`;
+
+  try{
+    const res = await fetch(url,{
+      method:'GET',
+      headers:{
+        'X-RapidAPI-Key':'a1c8a92831aa83b9846d6433064d199d',
+        'X-RapidAPI-Host':'api-football-v1.p.rapidapi.com'
+      }
+    });
+    const data = await res.json();
+    const jogos = data.response;
+
+    // --- Renderizar tabela de últimos jogos ---
+    let html = `<table><tr><th>Adversário</th><th>Data</th><th>Placar</th><th>Gols</th><th>Cantos</th><th>Cartões</th><th>Impedimentos</th></tr>`;
+    let gols=[], cantos=[], cartoes=[], impedimentos=[], labels=[];
+    jogos.forEach(j=>{
+      const adversario = j.teams.home.id == teamId ? j.teams.away.name : j.teams.home.name;
+      const placar = `${j.goals.home} - ${j.goals.away}`;
+      const g = Math.floor(Math.random()*5); // Simulado
+      const c = Math.floor(Math.random()*10);
+      const ca = Math.floor(Math.random()*5);
+      const i = Math.floor(Math.random()*3);
+
+      html += `<tr>
+        <td>${adversario}</td>
+        <td>${new Date(j.fixture.date).toLocaleDateString()}</td>
+        <td>${placar}</td>
+        <td>${g}</td>
+        <td>${c}</td>
+        <td>${ca}</td>
+        <td>${i}</td>
+      </tr>`;
+      labels.push(adversario);
+      gols.push(g); cantos.push(c); cartoes.push(ca); impedimentos.push(i);
+    });
+    html += `</table>`;
+    document.getElementById("resultados").innerHTML = html;
+
+    // --- Renderizar previsões ---
+    document.getElementById("previsoes").innerHTML = `<p>Gols esperados: ${Math.round(gols.reduce((a,b)=>a+b)/gols.length)}</p>
+      <p>Cantos esperados: ${Math.round(cantos.reduce((a,b)=>a+b)/cantos.length)}</p>
+      <p>Cartões esperados: ${Math.round(cartoes.reduce((a,b)=>a+b)/cartoes.length)}</p>
+      <p>Impedimentos esperados: ${Math.round(impedimentos.reduce((a,b)=>a+b)/impedimentos.length)}</p>`;
+
+    // --- Renderizar jogadores aptos ---
+    const jogadores = relatoriosMedicos[teamId] || [];
+    let jogHtml = "";
+    jogadores.forEach(j=> jogHtml += `<li>${j.nome} - Aptidão: ${j.aptidao}%</li>`);
+    document.getElementById("jogadores").innerHTML = jogHtml;
+
+    // --- Renderizar gráficos ---
+    function renderChart(id,data,label,title,color){
+      const ctx = document.getElementById(id).getContext('2d');
+      if(window[id]) window[id].destroy();
+      window[id] = new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:color}]} ,options:{plugins:{title:{display:true,text:title}},scales:{y:{beginAtZero:true}}}});
+    }
+    renderChart("golsChart",gols,"Gols","Gols por adversário","#ff6384");
+    renderChart("cantosChart",cantos,"Cantos","Cantos por adversário","#36a2eb");
+    renderChart("cartoesChart",cartoes,"Cartões","Cartões por adversário","#ffce56");
+    renderChart("impedimentosChart",impedimentos,"Impedimentos","Impedimentos por adversário","#4bc0c0");
+
+  }catch(e){ console.error(e); alert("Erro ao buscar dados!"); }
+}
+
+</script>
+</body>
+</html>
+
 
